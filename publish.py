@@ -16,7 +16,11 @@ TG_TOKEN = os.environ.get("TG_TOKEN", "").strip()
 TG_CHAT_ID = os.environ.get("TG_CHAT_ID", "").strip()
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
-IG = "https://graph.instagram.com"
+# ID профессионального аккаунта @mukhambetov.yurist (из панели Meta)
+IG_USER_ID = os.environ.get("IG_USER_ID", "").strip() or "17841410486663764"
+# Токен Instagram Login начинается с "IG", токен Facebook/системного пользователя — с "EA"
+FB_TOKEN = IG_TOKEN.startswith("EA")
+IG = "https://graph.facebook.com/v23.0" if FB_TOKEN else "https://graph.instagram.com"
 
 
 def http(method, url, params=None):
@@ -63,11 +67,16 @@ def tg(text):
 
 
 def me():
+    if FB_TOKEN:
+        r = http("GET", f"{IG}/{IG_USER_ID}", {"fields": "id,username", "access_token": IG_TOKEN})
+        return {"user_id": r["id"], "username": r.get("username")}
     return http("GET", f"{IG}/me", {"fields": "user_id,username", "access_token": IG_TOKEN})
 
 
 def refresh_token():
     """Продлевает долгосрочный токен Instagram ещё на 60 дней."""
+    if FB_TOKEN:
+        return "∞"  # токен системного пользователя бессрочный
     try:
         r = http("GET", f"{IG}/refresh_access_token",
                  {"grant_type": "ig_refresh_token", "access_token": IG_TOKEN})
@@ -144,7 +153,8 @@ def main():
         days = refresh_token()
         upcoming = sorted(d for d in os.listdir("posts")
                           if not os.path.exists(os.path.join("posts", d, "published.txt")))
-        token_line = f"Токен действует ещё ~{days} дн." if days else "Срок токена узнать не удалось."
+        token_line = ("Токен бессрочный." if days == "∞" else
+                      f"Токен действует ещё ~{days} дн." if days else "Срок токена узнать не удалось.")
         tg(f"🔧 Проверка пройдена.\nInstagram: @{info.get('username')}\n{token_line}")
         tg("📅 В очереди: " + (", ".join(upcoming) if upcoming else "пусто — пора согласовать посты"))
         return
