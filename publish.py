@@ -38,16 +38,29 @@ def http(method, url, params=None):
         raise RuntimeError(f"{e.code} {url.split('?')[0]}: {body}") from None
 
 
+CHAT_FILE = "tg_chat_id.txt"
+
+
 def tg_chat_id():
+    """ID чата с ботом: из секрета, из файла-памяти или из последних сообщений боту.
+    Найденный ID сохраняется в tg_chat_id.txt (Telegram хранит сообщения боту только 24 часа)."""
     global TG_CHAT_ID
     if TG_CHAT_ID or not TG_TOKEN:
         return TG_CHAT_ID
+    if os.path.exists(CHAT_FILE):
+        TG_CHAT_ID = open(CHAT_FILE).read().strip()
+        if TG_CHAT_ID:
+            return TG_CHAT_ID
     upd = http("GET", f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates").get("result", [])
     for u in reversed(upd):
         msg = u.get("message") or u.get("my_chat_member") or {}
         if msg.get("chat", {}).get("id"):
             TG_CHAT_ID = str(msg["chat"]["id"])
             break
+    if TG_CHAT_ID:
+        with open(CHAT_FILE, "w") as fh:
+            fh.write(TG_CHAT_ID + "\n")
+        os.system(f"git add {CHAT_FILE} >/dev/null 2>&1")
     return TG_CHAT_ID
 
 
